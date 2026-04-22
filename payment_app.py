@@ -2,13 +2,12 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
 
-# 1. 비밀번호 확인 로직 (시크릿 금고 사용) 🔑
+# 1. 비밀번호 확인 로직
 def check_password():
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
 
     def password_entered():
-        # st.secrets["MY_PWD"]를 사용하여 금고에서 비번을 가져옵니다.
         if st.session_state["pwd_input"] == st.secrets["MY_PWD"]:
             st.session_state["password_correct"] = True
             del st.session_state["pwd_input"]
@@ -31,14 +30,14 @@ def check_password():
     
     return False
 
-# 2. 메인 앱 실행 제어 🚀
+# 2. 메인 앱 실행
 if check_password():
     st.title("💳 Payment Receipt Tool")
     
-    # --- 이하 영수증 도구 기능 동일 ---
     with st.container():
         st.subheader("📝 Enter Details")
         col1, col2 = st.columns(2)
+        
         with col1:
             vendor_list = ["VITERRA", "VOITA", "M&M", "TFC", "PREMIER", "CAPESPAN"]
             vendor = st.selectbox("Vendor", vendor_list)
@@ -46,15 +45,31 @@ if check_password():
             inv_no = st.text_input("Invoice No", "520")
             item = st.text_input("Item", "CHILE CHERRY")
             ref_no = st.text_input("Ref No.", "CHCH26003")
+            
         with col2:
             total_amt = st.number_input("Total Amount ($)", min_value=0.0, value=99636.00)
             prev_pay = st.number_input("Previous Payment ($)", min_value=0.0, value=0.0)
+            
+            # --- Credit 추가 섹션 ---
+            use_credit = st.checkbox("Credit ($) 적용하기")
+            credit_amt = 0.0
+            if use_credit:
+                credit_amt = st.number_input("Credit Amount ($)", min_value=0.0, value=0.0)
+            # -----------------------
+            
             curr_remit = st.number_input("Current Remittance ($)", min_value=0.0, value=40000.00)
             ex_rate = st.number_input("Ex. Rate", min_value=0.0, value=1460.30)
 
-    balance = total_amt - prev_pay - curr_remit
+    # 잔액 계산 (Credit 포함)
+    balance = total_amt - prev_pay - credit_amt - curr_remit
     krw_total = curr_remit * ex_rate
     formatted_date = date.strftime('%b %d, %Y')
+
+    # HTML 내부에 삽입될 Credit 행 (체크 시에만 생성)
+    credit_html_row = ""
+    if use_credit:
+        credit_html_row = f'<div class="row"><span class="label">Credit:</span><span class="value">$ {credit_amt:,.2f}</span></div>'
+
     st.markdown("---")
 
     receipt_html = f"""
@@ -92,6 +107,7 @@ if check_password():
                 <hr class="divider">
                 <div class="row"><span class="label">Total Amount:</span><span class="value">$ {total_amt:,.2f}</span></div>
                 <div class="row"><span class="label">Previous Payment:</span><span class="value">$ {prev_pay:,.2f}</span></div>
+                {credit_html_row}
                 <div class="row-highlight"><span class="label">Current Remittance:</span><span class="value">$ {curr_remit:,.2f}</span></div>
                 <div class="row"><span class="label">Balance:</span><span class="value">$ {balance:,.2f}</span></div>
                 <hr class="divider">
@@ -115,11 +131,15 @@ if check_password():
         async function copyReceipt() {{
             const canvas = await html2canvas(document.getElementById('capture-target'), {{ scale: 2 }});
             canvas.toBlob(blob => {{
-                navigator.clipboard.write([new ClipboardItem({{ "image/png": blob }})]);
+                if (blob) {{
+                    const item = new ClipboardItem({{ "image/png": blob }});
+                    navigator.clipboard.write([item]);
+                    alert("이미지가 클립보드에 복사되었습니다!");
+                }}
             }});
         }}
     </script>
     </body>
     </html>
     """
-    components.html(receipt_html, height=760)
+    components.html(receipt_html, height=800)
